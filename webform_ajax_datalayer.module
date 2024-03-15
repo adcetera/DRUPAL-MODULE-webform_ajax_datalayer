@@ -1,0 +1,122 @@
+<?php
+
+use Drupal\Component\Serialization\Json;
+use Drupal\Core\Form\FormStateInterface;
+use Drupal\Core\Ajax\InvokeCommand;
+use Drupal\webform\Entity\Webform;
+
+/**
+ * Implements hook_webform_submission_form_alter()
+ */
+function webform_ajax_datalayer_webform_submission_form_alter(&$form, FormStateInterface $form_state, $form_id) {
+
+  // Load the original webform so we can check the handlers
+  $webform = Webform::load($form['#webform_id']);
+  if (!empty($webform)) {
+
+    // Load handler configurations
+    $handlerConfigs = $webform->getHandlers()->getConfiguration();
+
+    // Loop through handler configs
+    foreach ($handlerConfigs as $config) {
+
+      // Check if the ajax_datalayer handler is added and enabled
+      if ($config['id'] === 'ajax_datalayer' && $config['status']) {
+
+        // Add an AJAX callback to the form submission.
+        $form['actions']['submit']['#ajax'] = [
+          'callback' => 'webform_ajax_datalayer_submission_callback',
+        ];
+
+        // Attach library to include custom behavior.
+        $form['#attached']['library'][] = "webform_ajax_datalayer/base";
+      }
+    }
+  }
+}
+
+/**
+ * Form submission callback handler
+ */
+function webform_ajax_datalayer_submission_callback(&$form, FormStateInterface $form_state) {
+
+  /** @var \Drupal\webform\WebformSubmissionForm $form_object */
+  $formObject = $form_state->getFormObject();
+
+  // Load the original webform entity as the handlers aren't available in this scope
+  $webform = Webform::load($form['#webform_id']);
+
+  // Load handler configurations
+  $handlerConfigs = $webform->getHandlers()->getConfiguration();
+
+  // Loop through handler configs
+  foreach ($handlerConfigs as $config) {
+    if ($config['id'] === 'ajax_datalayer' && $config['status']) {
+      $ajaxDataLayerConfig = $config;
+    }
+  }
+
+  // Set initial response
+  $response = $formObject->submitAjaxForm($form, $form_state);
+
+  if (isset($ajaxDataLayerConfig)) {
+    $executeOnError = $ajaxDataLayerConfig['settings']['execute_on_error'];
+
+    // Determine if we need to add the invoke command
+    $addInvokeResponse = false;
+    if ($executeOnError && $form_state->hasAnyErrors()) {
+      $addInvokeResponse = true;
+    }
+    if (!$form_state->hasAnyErrors()) {
+      $addInvokeResponse = true;
+    }
+    if ($addInvokeResponse) {
+      $response->addCommand(_buildInvokeCommand(
+        $form['#webform_id'],
+        $ajaxDataLayerConfig,
+        $form_state
+      ));
+    }
+  }
+  return $response;
+}
+
+/**
+ * Builds the invoke command added to the callback
+ *
+ * @param string $formId
+ * @param array $handlerConfig
+ * @param \Drupal\Core\Form\FormStateInterface $form_state
+ *
+ * @return \Drupal\Core\Ajax\InvokeCommand
+ */
+function _buildInvokeCommand(string $formId, array $handlerConfig, FormStateInterface $form_state) {
+  $finalCustomParams = [];
+  $customParams = $handlerConfig['settings']['custom_params'];
+  if (!empty($customParams)) {
+    $customParams = str_contains($customParams, ",") ? explode(",", $customParams) : [$customParams];
+    $keys = [];
+    $values = [];
+
+    foreach ($customParams as $customParam) {
+      $parts = explode(":", $customParam);
+      $keys[] = trim($parts[0], '"');
+      $values[] = trim($parts[1], '"');
+    }
+
+    foreach ($form_state->getValues() as $key => $value) {
+      $values = str_replace('[' . $key . ']', $value, $values);
+    }
+    $finalCustomParams = array_combine($keys, $values);
+  }
+
+  return new InvokeCommand(
+    NULL,
+    'webformAjaxPushToDataLayer',
+    [
+      $formId,
+      $form_state->hasAnyErrors() ? 'failure' : 'success',
+      Json::encode($finalCustomParams)
+    ]
+  );
+}

@@ -1,0 +1,6 @@
+base:
+  js:
+    js/webform-ajax-datalayer.js: {}
+  dependencies:
+    - core/drupal
+    - core/jquery

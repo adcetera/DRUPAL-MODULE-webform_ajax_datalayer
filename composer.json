@@ -1,0 +1,15 @@
+{
+  "name": "adcetera/webform_ajax_datalayer",
+  "description": "Provides a webform handler that can interact with the dataLayer for Ajax forms.",
+  "type": "drupal-module",
+  "minimum-stability": "dev",
+  "authors": [
+    {
+      "name": "Adcetera",
+      "email": "hello@adcetera.com",
+      "homepage": "https://www.adcetera.com",
+      "role": "Maintainer"
+    }
+  ],
+  "license": "GPL-3.0+"
+}

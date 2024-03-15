@@ -1,0 +1,7 @@
+name: 'Webform Ajax Datalayer'
+type: module
+description: 'Provides a webform handler that can interact with the dataLayer for Ajax forms.'
+package: Webform
+core_version_requirement: ^10
+dependencies:
+  - drupal:webform
